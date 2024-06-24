@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Odell Down Under Remake</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #001D4A;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        #gameCanvas {
+            border: 2px solid #4AA5FF;
+            border-radius: 10px;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 29, 74, 0.8);
+            color: white;
+            text-align: center;
+        }
+        button {
+            background-color: #4AA5FF;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="300"></canvas>
+        <div id="startScreen">
+            <h1>Odell Down Under</h1>
+            <p>Use arrow keys to swim and eat smaller fish. Avoid larger fish!</p>
+            <button id="startButton">Start Game</button>
+        </div>
+        <div id="gameOverScreen" style="display: none;">
+            <h1>Game Over</h1>
+            <p>Your score: <span id="finalScore"></span></p>
+            <button id="restartButton">Play Again</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+        const finalScoreSpan = document.getElementById('finalScore');
+
+        const player = {
+            x: 200,
+            y: 150,
+            size: 20,
+            speed: 3,
+            dx: 0,
+            dy: 0
+        };
+
+        let fish = [];
+        let predators = [];
+        let bubbles = [];
+        let score = 0;
+        let gameOver = false;
+        let gameActive = false;
+
+        function drawPlayer() {
+            ctx.fillStyle = '#FFB733';
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y);
+            ctx.lineTo(player.x - player.size, player.y - player.size / 2);
+            ctx.lineTo(player.x - player.size, player.y + player.size / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#FF9500';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw eye
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(player.x - player.size / 3, player.y - player.size / 6, player.size / 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(player.x - player.size / 3, player.y - player.size / 6, player.size / 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawFish() {
+            fish.forEach(f => {
+                ctx.fillStyle = '#33B5FF';
+                ctx.beginPath();
+                ctx.moveTo(f.x, f.y);
+                ctx.lineTo(f.x - f.size, f.y - f.size / 2);
+                ctx.lineTo(f.x - f.size, f.y + f.size / 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#1E90FF';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw eye
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(f.x - f.size / 3, f.y - f.size / 6, f.size / 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(f.x - f.size / 3, f.y - f.size / 6, f.size / 20, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawPredators() {
+            predators.forEach(p => {
+                ctx.fillStyle = '#FF4C4C';
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x - p.size, p.y - p.size / 2);
+                ctx.lineTo(p.x - p.size, p.y + p.size / 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#B22222';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw eye
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(p.x - p.size / 3, p.y - p.size / 6, p.size / 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(p.x - p.size / 3, p.y - p.size / 6, p.size / 20, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawBubbles() {
+            bubbles.forEach(b => {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 25);
+        }
+
+        function drawBackground() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0077BE');
+            gradient.addColorStop(1, '#001D4A');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawBackground();
+            drawBubbles();
+            drawPlayer();
+            drawFish();
+            drawPredators();
+            drawScore();
+
+            player.x += player.dx;
+            player.y += player.dy;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width) player.x = canvas.width;
+            if (player.y < 0) player.y = 0;
+            if (player.y > canvas.height) player.y = canvas.height;
+
+            fish = fish.filter(f => {
+                f.x += f.dx;
+                if (f.x < -f.size) f.x = canvas.width + f.size;
+                if (f.x > canvas.width + f.size) f.x = -f.size;
+
+                const distance = Math.hypot(player.x - f.x, player.y - f.y);
+                if (distance < player.size / 2 + f.size / 2) {
+                    score++;
+                    return false;
+                }
+                return true;
+            });
+
+            predators.forEach(p => {
+                p.x += p.dx;
+                if (p.x < -p.size) p.x = canvas.width + p.size;
+                if (p.x > canvas.width + p.size) p.x = -p.size;
+
+                const distance = Math.hypot(player.x - p.x, player.y - p.y);
+                if (distance < player.size / 2 + p.size / 2) {
+                    gameOver = true;
+                    gameActive = false;
+                    finalScoreSpan.textContent = score;
+                    gameOverScreen.style.display = 'flex';
+                }
+            });
+
+            bubbles = bubbles.filter(b => {
+                b.y -= b.speed;
+                if (b.y + b.size < 0) return false;
+                return true;
+            });
+
+            if (fish.length < 5) {
+                fish.push({
+                    x: Math.random() < 0.5 ? -20 : canvas.width + 20,
+                    y: Math.random() * canvas.height,
+                    size: 10 + Math.random() * 5,
+                    dx: (Math.random() - 0.5) * 2
+                });
+            }
+
+            if (predators.length < 2) {
+                predators.push({
+                    x: Math.random() < 0.5 ? -40 : canvas.width + 40,
+                    y: Math.random() * canvas.height,
+                    size: 30 + Math.random() * 10,
+                    dx: (Math.random() - 0.5) * 2
+                });
+            }
+
+            if (Math.random() < 0.05) {
+                bubbles.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height + 10,
+                    size: 2 + Math.random() * 3,
+                    speed: 0.5 + Math.random() * 1
+                });
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') player.dx = -player.speed;
+            if (e.key === 'ArrowRight') player.dx = player.speed;
+            if (e.key === 'ArrowUp') player.dy = -player.speed;
+            if (e.key === 'ArrowDown') player.dy = player.speed;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.dx = 0;
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') player.dy = 0;
+        });
+
+        function startGame() {
+            player.x = 200;
+            player.y = 150;
+            fish = [];
+            predators = [];
+            bubbles = [];
+            score = 0;
+            gameOver = false;
+            gameActive = true;
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            update();
+        }
+
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // Initial draw of the start screen
+        drawBackground();
+        startScreen.style.display = 'flex';
+    </script>
+</body>
+</html>
